@@ -6,9 +6,9 @@ import CommissionPage from '@/pages/CommissionPage'
 
 export default function App() {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-paper-50 texture-paper">
       <Sidebar />
-      <main className="flex-1 overflow-hidden bg-gradient-to-br from-surface-50 via-white to-primary-50/40">
+      <main className="flex-1 overflow-hidden">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/community" element={<CommunityPage />} />
