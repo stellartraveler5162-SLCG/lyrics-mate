@@ -1,8 +1,8 @@
 # 🎵 词伴 Lyrics Mate
 
-> Mac 端歌词写作助手 — 填词模式 & 原创模式，让每句歌词都有章可循。
+> 跨平台歌词写作助手 — 填词模式 & 原创模式，让每句歌词都有章可循。
 
-![](https://img.shields.io/badge/platform-macOS-blue)
+![](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-9cf)
 ![](https://img.shields.io/badge/built%20with-Electron%20%2B%20React-61DAFB)
 ![](https://img.shields.io/badge/license-MIT-green)
 
@@ -48,9 +48,12 @@
 
 ## 安装使用
 
-### 方式一：下载 DMG 安装包
+### 方式一：下载安装包
 
-从 [Releases](https://github.com/stellartraveler5162-SLCG/lyrics-mate/releases) 下载最新 `.dmg` 文件，双击挂载后拖入 **Applications** 文件夹即可。
+| 平台 | 下载 |
+|---|---|
+| macOS | 从 [Releases](https://github.com/stellartraveler5162-SLCG/lyrics-mate/releases) 下载 `.dmg`，双击挂载后拖入 **Applications** |
+| Windows | 下载 `词伴 Lyrics Mate Setup 1.0.0.exe` 安装包，双击安装；或下载 `.zip` 解压即用 |
 
 ### 方式二：源码运行
 
@@ -70,6 +73,9 @@ npm run electron:dev
 
 # 打包 DMG 安装包
 npm run build:dmg
+
+# 打包 Windows 安装包
+npm run build:win
 ```
 
 ### 环境要求
@@ -160,12 +166,12 @@ lyrics-mate/
 - [x] 查资料区 — AIAC 搜索素材/典故/韵脚
 - [x] 最终歌词区 — 预览/复制/导出
 - [x] Mac DMG 打包
+- [x] Windows exe / zip 打包
 - [ ] 社区广场 — 分享作品、评论互动
 - [ ] 约稿中心 — 发布/承接歌词创作需求
 - [ ] 接入真实 AI API
 - [ ] 多曲目项目管理
 - [ ] 暗色模式
-- [ ] Windows 打包支持
 
 ---
 

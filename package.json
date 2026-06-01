@@ -8,6 +8,7 @@
     "build": "vite build && electron-builder",
     "build:renderer": "vite build",
     "build:dmg": "vite build && electron-builder --mac dmg",
+    "build:win": "vite build && electron-builder --win",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && tsc -p electron/tsconfig.json && electron .\"",
     "lint": "eslint src --ext .ts,.tsx"
@@ -45,6 +46,26 @@
       "category": "public.app-category.music",
       "icon": "public/icon.png",
       "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "public/icon.png",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerSidebar": null,
+      "shortcutName": "词伴 Lyrics Mate"
     },
     "files": [
       "dist/**/*",
