@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { PenLine, Users, Briefcase } from 'lucide-react'
+import { PenLine, Users, Briefcase, User, LogOut } from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
 
 const navItems = [
   { to: '/', icon: PenLine, label: '创作', exact: true },
@@ -9,10 +10,11 @@ const navItems = [
 
 export default function Sidebar() {
   const location = useLocation()
+  const { user, logout } = useAuthStore()
 
   return (
     <aside className="w-[68px] bg-white/70 backdrop-blur-sm border-r border-paper-200 flex flex-col items-center py-5 gap-1 shrink-0">
-      <div className="mb-5 mt-1">
+      <div className="mb-4 mt-1">
         <div className="w-9 h-9 rounded-lg bg-ink-900 flex items-center justify-center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8e1d5" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 18V5l12-2v13" />
@@ -42,6 +44,41 @@ export default function Sidebar() {
           </NavLink>
         )
       })}
+
+      <div className="mt-auto flex flex-col items-center gap-1 pb-2">
+        {user ? (
+          <>
+            <NavLink
+              to="/auth"
+              className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg w-[54px]
+                text-ink-300 hover:text-ink-600 hover:bg-paper-100 transition-all"
+              title={user.username}
+            >
+              <User className="w-[18px] h-[18px]" strokeWidth={1.8} />
+              <span className="text-[9px] font-medium leading-none tracking-wide truncate max-w-[44px]">
+                {user.username}
+              </span>
+            </NavLink>
+            <button
+              onClick={logout}
+              className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg w-[54px]
+                text-ink-200 hover:text-vermilion-500 hover:bg-vermilion-50/50 transition-all"
+              title="退出登录"
+            >
+              <LogOut className="w-[14px] h-[14px]" strokeWidth={1.8} />
+            </button>
+          </>
+        ) : (
+          <NavLink
+            to="/auth"
+            className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg w-[54px]
+              text-ink-300 hover:text-ink-600 hover:bg-paper-100 transition-all"
+          >
+            <User className="w-[18px] h-[18px]" strokeWidth={1.8} />
+            <span className="text-[10px] font-medium leading-none tracking-wide">登录</span>
+          </NavLink>
+        )}
+      </div>
     </aside>
   )
 }

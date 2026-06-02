@@ -3,6 +3,7 @@ import Sidebar from '@/components/Sidebar'
 import HomePage from '@/pages/HomePage'
 import CommunityPage from '@/pages/CommunityPage'
 import CommissionPage from '@/pages/CommissionPage'
+import AuthPage from '@/pages/AuthPage'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/community" element={<CommunityPage />} />
           <Route path="/commission" element={<CommissionPage />} />
+          <Route path="/auth" element={<AuthPage />} />
         </Routes>
       </main>
     </div>

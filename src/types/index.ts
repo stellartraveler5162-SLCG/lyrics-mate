@@ -40,8 +40,19 @@ export interface LyricProject {
   updatedAt: string
 }
 
+export interface User {
+  id: string
+  username: string
+}
+
+export interface AuthState {
+  token: string | null
+  user: User | null
+}
+
 export interface CommunityPost {
   id: string
+  user_id: string
   title: string
   lyrics: string
   author: string
@@ -53,6 +64,7 @@ export interface CommunityPost {
 
 export interface Commission {
   id: string
+  user_id: string
   title: string
   description: string
   budget: string
@@ -67,6 +79,7 @@ export interface Commission {
 export interface CommissionBid {
   id: string
   commission_id: string
+  user_id: string
   author: string
   message: string
   sample: string

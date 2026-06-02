@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Users, Heart, Trash2, Plus, X, RefreshCw, MessageCircle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Users, Heart, Trash2, Plus, X, RefreshCw } from 'lucide-react'
 import type { CommunityPost, PaginatedResponse } from '@/types'
+import { useAuthStore } from '@/store/auth'
 import * as api from '@/services/api'
 
 export default function CommunityPage() {
@@ -11,8 +13,10 @@ export default function CommunityPage() {
   const [showForm, setShowForm] = useState(false)
   const [formTitle, setFormTitle] = useState('')
   const [formLyrics, setFormLyrics] = useState('')
-  const [formAuthor, setFormAuthor] = useState('')
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
+  const [errMsg, setErrMsg] = useState('')
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
 
   const loadPosts = useCallback(async (p: number) => {
     setLoading(true)
@@ -22,7 +26,6 @@ export default function CommunityPage() {
       setTotal(res.total || 0)
       setPage(p)
     } catch {
-      // silent fail
     } finally {
       setLoading(false)
     }
@@ -30,17 +33,25 @@ export default function CommunityPage() {
 
   useEffect(() => { loadPosts(1) }, [loadPosts])
 
+  function ensureLogin(): boolean {
+    if (!user) {
+      setErrMsg('请先登录')
+      navigate('/auth')
+      return false
+    }
+    return true
+  }
+
   async function handleCreate() {
     if (!formTitle.trim() || !formLyrics.trim()) return
+    if (!ensureLogin()) return
     try {
       await api.createCommunityPost({
         title: formTitle.trim(),
         lyrics: formLyrics.trim(),
-        author: formAuthor.trim() || undefined,
       })
       setFormTitle('')
       setFormLyrics('')
-      setFormAuthor('')
       setShowForm(false)
       loadPosts(1)
     } catch { /* ignore */ }
@@ -48,6 +59,7 @@ export default function CommunityPage() {
 
   async function handleLike(id: string) {
     if (likedIds.has(id)) return
+    if (!ensureLogin()) return
     try {
       const { likes } = await api.likeCommunityPost(id)
       setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, likes } : p)))
@@ -56,10 +68,13 @@ export default function CommunityPage() {
   }
 
   async function handleDelete(id: string) {
+    if (!ensureLogin()) return
     try {
       await api.deleteCommunityPost(id)
       loadPosts(page)
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setErrMsg(err.message)
+    }
   }
 
   const limit = 20
@@ -82,25 +97,30 @@ export default function CommunityPage() {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-1.5 bg-ink-800 text-paper-50 rounded-lg hover:bg-ink-900
-              transition-all flex items-center gap-1.5 text-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            发布作品
-          </button>
+          {user && (
+            <button
+              onClick={() => { setShowForm(true); setErrMsg('') }}
+              className="px-4 py-1.5 bg-ink-800 text-paper-50 rounded-lg hover:bg-ink-900
+                transition-all flex items-center gap-1.5 text-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              发布作品
+            </button>
+          )}
         </div>
       </div>
+
+      {errMsg && (
+        <div className="mx-6 mt-3 px-3 py-2 bg-vermilion-50 border border-vermilion-200 rounded-lg text-xs text-vermilion-700">
+          {errMsg}
+        </div>
+      )}
 
       {showForm && (
         <div className="mx-6 mt-4 panel-card rounded-xl p-5 animate-fade-up">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xs font-semibold text-ink-400 uppercase tracking-widest">发布新作品</h3>
-            <button
-              onClick={() => setShowForm(false)}
-              className="p-1 text-ink-300 hover:text-ink-600 rounded"
-            >
+            <button onClick={() => setShowForm(false)} className="p-1 text-ink-300 hover:text-ink-600 rounded">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -116,15 +136,8 @@ export default function CommunityPage() {
             onChange={(e) => setFormLyrics(e.target.value)}
             placeholder="歌词内容..."
             rows={5}
-            className="w-full px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg mb-3
+            className="w-full px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg mb-4
               focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300 resize-none lyrics-preview"
-          />
-          <input
-            value={formAuthor}
-            onChange={(e) => setFormAuthor(e.target.value)}
-            placeholder="你的昵称（选填）"
-            className="w-full px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg mb-3
-              focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300"
           />
           <button
             onClick={handleCreate}
@@ -146,7 +159,14 @@ export default function CommunityPage() {
           <div className="flex flex-col items-center justify-center h-full text-ink-200">
             <Users className="w-12 h-12 mb-4 opacity-20" strokeWidth={1} />
             <p className="text-sm tracking-wide">还没有人分享作品</p>
-            <p className="text-xs text-ink-200 mt-1">点击「发布作品」成为第一个</p>
+            {!user && (
+              <p className="text-xs text-ink-200 mt-1">
+                <button onClick={() => navigate('/auth')} className="underline hover:text-ink-500">
+                  登录
+                </button>
+                后发布你的第一首作品
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4 max-w-2xl mx-auto">
@@ -168,13 +188,15 @@ export default function CommunityPage() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleDelete(post.id)}
-                    className="p-1.5 text-ink-200 hover:text-vermilion-500 rounded transition-colors"
-                    title="删除"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {user && user.id === post.user_id && (
+                    <button
+                      onClick={() => handleDelete(post.id)}
+                      className="p-1.5 text-ink-200 hover:text-vermilion-500 rounded transition-colors"
+                      title="删除"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <pre className="text-sm text-ink-600 leading-[2.2] tracking-wide whitespace-pre-wrap lyrics-preview mb-4 font-[inherit]">

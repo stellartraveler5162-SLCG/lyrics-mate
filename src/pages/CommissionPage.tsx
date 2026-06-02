@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Briefcase, Plus, X, RefreshCw, Trash2, FileText, Send } from 'lucide-react'
 import type { Commission, PaginatedResponse } from '@/types'
+import { useAuthStore } from '@/store/auth'
 import * as api from '@/services/api'
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -18,12 +20,13 @@ export default function CommissionPage() {
   const [formTitle, setFormTitle] = useState('')
   const [formDesc, setFormDesc] = useState('')
   const [formBudget, setFormBudget] = useState('')
-  const [formAuthor, setFormAuthor] = useState('')
   const [showBid, setShowBid] = useState<string | null>(null)
   const [bidMsg, setBidMsg] = useState('')
   const [bidSample, setBidSample] = useState('')
-  const [bidAuthor, setBidAuthor] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [errMsg, setErrMsg] = useState('')
+  const { user } = useAuthStore()
+  const navigate = useNavigate()
 
   const loadCommissions = useCallback(async (p: number) => {
     setLoading(true)
@@ -40,47 +43,66 @@ export default function CommissionPage() {
 
   useEffect(() => { loadCommissions(1) }, [loadCommissions])
 
+  function ensureLogin(): boolean {
+    if (!user) {
+      setErrMsg('请先登录')
+      navigate('/auth')
+      return false
+    }
+    return true
+  }
+
   async function handleCreate() {
     if (!formTitle.trim()) return
+    if (!ensureLogin()) return
     try {
       await api.createCommission({
         title: formTitle.trim(),
         description: formDesc.trim(),
         budget: formBudget.trim(),
-        author: formAuthor.trim() || undefined,
       })
-      setFormTitle(''); setFormDesc(''); setFormBudget(''); setFormAuthor('')
+      setFormTitle(''); setFormDesc(''); setFormBudget('')
       setShowForm(false)
       loadCommissions(1)
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setErrMsg(err.message)
+    }
   }
 
   async function handleDelete(id: string) {
+    if (!ensureLogin()) return
     try {
       await api.deleteCommission(id)
       loadCommissions(page)
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setErrMsg(err.message)
+    }
   }
 
   async function handleUpdateStatus(id: string, status: string) {
+    if (!ensureLogin()) return
     try {
       const updated = await api.updateCommission(id, { status })
       setCommissions((prev) => prev.map((c) => (c.id === id ? updated : c)))
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setErrMsg(err.message)
+    }
   }
 
   async function handleBid(commissionId: string) {
+    if (!ensureLogin()) return
     try {
       await api.createBid(commissionId, {
         message: bidMsg.trim(),
         sample: bidSample.trim(),
-        author: bidAuthor.trim() || undefined,
       })
-      setBidMsg(''); setBidSample(''); setBidAuthor('')
+      setBidMsg(''); setBidSample('')
       setShowBid(null)
       const detail = await api.fetchCommission(commissionId)
       setCommissions((prev) => prev.map((c) => (c.id === commissionId ? detail : c)))
-    } catch { /* ignore */ }
+    } catch (err: any) {
+      setErrMsg(err.message)
+    }
   }
 
   async function toggleExpand(id: string) {
@@ -115,16 +137,24 @@ export default function CommissionPage() {
           >
             <RefreshCw className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setShowForm(true)}
-            className="px-4 py-1.5 bg-ink-800 text-paper-50 rounded-lg hover:bg-ink-900
-              transition-all flex items-center gap-1.5 text-sm"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            发布需求
-          </button>
+          {user && (
+            <button
+              onClick={() => { setShowForm(true); setErrMsg('') }}
+              className="px-4 py-1.5 bg-ink-800 text-paper-50 rounded-lg hover:bg-ink-900
+                transition-all flex items-center gap-1.5 text-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              发布需求
+            </button>
+          )}
         </div>
       </div>
+
+      {errMsg && (
+        <div className="mx-6 mt-3 px-3 py-2 bg-vermilion-50 border border-vermilion-200 rounded-lg text-xs text-vermilion-700">
+          {errMsg}
+        </div>
+      )}
 
       {showForm && (
         <div className="mx-6 mt-4 panel-card rounded-xl p-5 animate-fade-up">
@@ -149,19 +179,12 @@ export default function CommissionPage() {
             className="w-full px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg mb-3
               focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300 resize-none"
           />
-          <div className="flex gap-3 mb-3">
+          <div className="mb-4">
             <input
               value={formBudget}
               onChange={(e) => setFormBudget(e.target.value)}
               placeholder="预算（选填）"
-              className="flex-1 px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg
-                focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300"
-            />
-            <input
-              value={formAuthor}
-              onChange={(e) => setFormAuthor(e.target.value)}
-              placeholder="你的昵称"
-              className="flex-1 px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg
+              className="w-full px-3 py-2 text-sm bg-paper-100 border border-paper-200 rounded-lg
                 focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300"
             />
           </div>
@@ -185,13 +208,21 @@ export default function CommissionPage() {
           <div className="flex flex-col items-center justify-center h-full text-ink-200">
             <Briefcase className="w-12 h-12 mb-4 opacity-20" strokeWidth={1} />
             <p className="text-sm tracking-wide">暂无约稿需求</p>
-            <p className="text-xs text-ink-200 mt-1">点击「发布需求」发起约稿</p>
+            {!user && (
+              <p className="text-xs text-ink-200 mt-1">
+                <button onClick={() => navigate('/auth')} className="underline hover:text-ink-500">
+                  登录
+                </button>
+                后发布或应征约稿
+              </p>
+            )}
           </div>
         ) : (
           <div className="space-y-4 max-w-2xl mx-auto">
             {commissions.map((c) => {
               const statusInfo = STATUS_LABELS[c.status] || STATUS_LABELS.open
               const isExpanded = expanded.has(c.id)
+              const isOwner = user && user.id === c.user_id
               return (
                 <div
                   key={c.id}
@@ -219,7 +250,7 @@ export default function CommissionPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {c.status === 'open' && (
+                      {c.status === 'open' && user && (
                         <>
                           <button
                             onClick={() => handleUpdateStatus(c.id, 'in_progress')}
@@ -228,14 +259,14 @@ export default function CommissionPage() {
                             承接
                           </button>
                           <button
-                            onClick={() => setShowBid(c.id)}
+                            onClick={() => { setShowBid(c.id); setErrMsg('') }}
                             className="px-2 py-1 text-[10px] bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-all"
                           >
                             应征
                           </button>
                         </>
                       )}
-                      {c.status === 'in_progress' && (
+                      {c.status === 'in_progress' && isOwner && (
                         <button
                           onClick={() => handleUpdateStatus(c.id, 'completed')}
                           className="px-2 py-1 text-[10px] bg-jade-50 text-jade-600 rounded-lg hover:bg-jade-100 transition-all"
@@ -243,12 +274,14 @@ export default function CommissionPage() {
                           完成
                         </button>
                       )}
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="p-1.5 text-ink-200 hover:text-vermilion-500 rounded transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {isOwner && (
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="p-1.5 text-ink-200 hover:text-vermilion-500 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -271,15 +304,8 @@ export default function CommissionPage() {
                         onChange={(e) => setBidSample(e.target.value)}
                         placeholder="歌词样例（选填）"
                         rows={2}
-                        className="w-full px-3 py-2 text-sm bg-white border border-paper-200 rounded-lg mb-2
+                        className="w-full px-3 py-2 text-sm bg-white border border-paper-200 rounded-lg mb-3
                           focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300 resize-none lyrics-preview"
-                      />
-                      <input
-                        value={bidAuthor}
-                        onChange={(e) => setBidAuthor(e.target.value)}
-                        placeholder="你的昵称"
-                        className="w-full px-3 py-2 text-sm bg-white border border-paper-200 rounded-lg mb-2
-                          focus:outline-none focus:border-ink-300 text-ink-700 placeholder:text-ink-300"
                       />
                       <div className="flex gap-2">
                         <button

@@ -1,10 +1,16 @@
-import type { CommunityPost, Commission, CommissionBid, PaginatedResponse } from '@/types'
+import type { CommunityPost, Commission, CommissionBid, PaginatedResponse, User } from '@/types'
+import { getToken } from '@/store/auth'
 
 const BASE_URL = 'http://156.239.236.41:3001/api'
 
+function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     ...options,
   })
   if (!res.ok) {
@@ -12,6 +18,20 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(err.error || `HTTP ${res.status}`)
   }
   return res.json()
+}
+
+// ─── Auth ───
+
+export async function register(username: string, password: string): Promise<{ token: string; user: User }> {
+  return request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) })
+}
+
+export async function login(username: string, password: string): Promise<{ token: string; user: User }> {
+  return request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
+}
+
+export async function fetchMe(): Promise<{ user: User }> {
+  return request('/auth/me')
 }
 
 // ─── Community ───
@@ -26,7 +46,7 @@ export async function fetchCommunityPost(id: string): Promise<CommunityPost> {
   return request(`/community/${id}`)
 }
 
-export async function createCommunityPost(data: { title: string; lyrics: string; author?: string; tags?: string[] }): Promise<CommunityPost> {
+export async function createCommunityPost(data: { title: string; lyrics: string; tags?: string[] }): Promise<CommunityPost> {
   return request('/community', { method: 'POST', body: JSON.stringify(data) })
 }
 
@@ -50,7 +70,7 @@ export async function fetchCommission(id: string): Promise<Commission> {
   return request(`/commissions/${id}`)
 }
 
-export async function createCommission(data: { title: string; description?: string; budget?: string; author?: string; tags?: string[] }): Promise<Commission> {
+export async function createCommission(data: { title: string; description?: string; budget?: string; tags?: string[] }): Promise<Commission> {
   return request('/commissions', { method: 'POST', body: JSON.stringify(data) })
 }
 
@@ -62,6 +82,6 @@ export async function deleteCommission(id: string): Promise<void> {
   return request(`/commissions/${id}`, { method: 'DELETE' })
 }
 
-export async function createBid(commissionId: string, data: { author?: string; message?: string; sample?: string }): Promise<CommissionBid> {
+export async function createBid(commissionId: string, data: { message?: string; sample?: string }): Promise<CommissionBid> {
   return request(`/commissions/${commissionId}/bids`, { method: 'POST', body: JSON.stringify(data) })
 }
