@@ -17,16 +17,8 @@ export interface ImageryTag {
 }
 
 export type MoodTone =
-  | '温暖'
-  | '伤感'
-  | '激昂'
-  | '清新'
-  | '深沉'
-  | '浪漫'
-  | '孤独'
-  | '欢快'
-  | '愤怒'
-  | '治愈'
+  | '温暖' | '伤感' | '激昂' | '清新' | '深沉'
+  | '浪漫' | '孤独' | '欢快' | '愤怒' | '治愈'
 
 export interface SearchResult {
   id: string
@@ -53,15 +45,37 @@ export interface CommunityPost {
   title: string
   lyrics: string
   author: string
+  tags: string
   likes: number
-  createdAt: string
+  created_at: string
+  updated_at: string
 }
 
-export interface CommissionRequest {
+export interface Commission {
   id: string
   title: string
   description: string
   budget: string
+  author: string
+  tags: string
   status: 'open' | 'in_progress' | 'completed'
-  createdAt: string
+  created_at: string
+  updated_at: string
+  bids?: CommissionBid[]
+}
+
+export interface CommissionBid {
+  id: string
+  commission_id: string
+  author: string
+  message: string
+  sample: string
+  created_at: string
+}
+
+export interface PaginatedResponse<T> {
+  data: T[]
+  page: number
+  limit: number
+  total?: number
 }

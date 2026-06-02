@@ -3,8 +3,8 @@ import { PenLine, Users, Briefcase } from 'lucide-react'
 
 const navItems = [
   { to: '/', icon: PenLine, label: '创作', exact: true },
-  { to: '/community', icon: Users, label: '社区', badge: '随后' },
-  { to: '/commission', icon: Briefcase, label: '约稿', badge: '随后' },
+  { to: '/community', icon: Users, label: '社区' },
+  { to: '/commission', icon: Briefcase, label: '约稿' },
 ]
 
 export default function Sidebar() {
@@ -22,7 +22,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {navItems.map(({ to, icon: Icon, label, badge }) => {
+      {navItems.map(({ to, icon: Icon, label }) => {
         const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to)
         return (
           <NavLink
@@ -39,11 +39,6 @@ export default function Sidebar() {
           >
             <Icon className="w-[18px] h-[18px]" strokeWidth={1.8} />
             <span className="text-[10px] font-medium leading-none tracking-wide">{label}</span>
-            {badge && (
-              <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-vermilion-100 text-vermilion-600 px-1.5 py-[1px] rounded-full font-medium leading-none whitespace-nowrap">
-                {badge}
-              </span>
-            )}
           </NavLink>
         )
       })}
