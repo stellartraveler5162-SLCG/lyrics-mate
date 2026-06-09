@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'path'
+import { writeFile } from 'fs/promises'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -41,13 +42,18 @@ app.on('activate', () => {
   }
 })
 
-ipcMain.handle('get-app-version', () => app.getVersion())
+ipcMain.handle('get-app-version', () => {
+  try {
+    return app.getVersion()
+  } catch {
+    return '1.0.0'
+  }
+})
 
 ipcMain.handle('export-file', async (_event, { content, fileName }: { content: string; fileName: string }) => {
-  const { dialog } = await import('electron')
-  const fs = await import('fs')
+  if (!mainWindow) return { success: false }
 
-  const result = await dialog.showSaveDialog(mainWindow!, {
+  const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: fileName,
     filters: [
       { name: '文本文件', extensions: ['txt'] },
@@ -56,8 +62,12 @@ ipcMain.handle('export-file', async (_event, { content, fileName }: { content: s
   })
 
   if (!result.canceled && result.filePath) {
-    fs.writeFileSync(result.filePath, content, 'utf-8')
-    return { success: true }
+    try {
+      await writeFile(result.filePath, content, 'utf-8')
+      return { success: true }
+    } catch {
+      return { success: false }
+    }
   }
   return { success: false }
 })

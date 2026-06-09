@@ -1,7 +1,8 @@
 import type { CommunityPost, Commission, CommissionBid, PaginatedResponse, User } from '@/types'
 import { getToken } from '@/store/auth'
 
-const BASE_URL = 'http://156.239.236.41:3001/api'
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://156.239.236.41:3001/api'
+const REQUEST_TIMEOUT_MS = 15000
 
 function authHeaders(): Record<string, string> {
   const token = getToken()
@@ -9,15 +10,37 @@ function authHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    ...options,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Network error' }))
-    throw new Error(err.error || `HTTP ${res.status}`)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+
+  try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...authHeaders() }
+    if (options?.headers) {
+      Object.assign(headers, options.headers instanceof Headers ? Object.fromEntries(options.headers.entries()) : options.headers)
+    }
+
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    })
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error((body as { error?: string }).error || `请求失败 (${res.status})`)
+    }
+    return res.json()
+  } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('请求超时，请检查网络连接')
+    }
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error('无法连接服务器，请检查网络')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
   }
-  return res.json()
 }
 
 // ─── Auth ───
@@ -42,7 +65,7 @@ export async function fetchCommunityPosts(page = 1, limit = 20, sort?: string): 
   return request(`/community?${params}`)
 }
 
-export async function fetchCommunityPost(id: string): Promise<CommunityPost> {
+export async function fetchCommunityPost(id: string): Promise<CommunityPost & { liked_by_me?: boolean }> {
   return request(`/community/${id}`)
 }
 
@@ -74,7 +97,7 @@ export async function createCommission(data: { title: string; description?: stri
   return request('/commissions', { method: 'POST', body: JSON.stringify(data) })
 }
 
-export async function updateCommission(id: string, data: { status?: string; title?: string; description?: string; budget?: string }): Promise<Commission> {
+export async function updateCommission(id: string, data: { status?: Commission['status']; title?: string; description?: string; budget?: string }): Promise<Commission> {
   return request(`/commissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
 

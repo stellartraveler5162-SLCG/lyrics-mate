@@ -27,27 +27,9 @@ export interface SearchResult {
   url: string
 }
 
-export interface LyricProject {
-  id: string
-  title: string
-  mode: LyricMode
-  imageryTags: ImageryTag[]
-  moodTone: MoodTone | null
-  template: LyricTemplate | null
-  rawLyrics: string
-  researchNotes: string
-  createdAt: string
-  updatedAt: string
-}
-
 export interface User {
   id: string
   username: string
-}
-
-export interface AuthState {
-  token: string | null
-  user: User | null
 }
 
 export interface CommunityPost {

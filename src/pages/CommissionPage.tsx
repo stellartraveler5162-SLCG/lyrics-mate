@@ -64,8 +64,8 @@ export default function CommissionPage() {
       setFormTitle(''); setFormDesc(''); setFormBudget('')
       setShowForm(false)
       loadCommissions(1)
-    } catch (err: any) {
-      setErrMsg(err.message)
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : '操作失败')
     }
   }
 
@@ -74,18 +74,18 @@ export default function CommissionPage() {
     try {
       await api.deleteCommission(id)
       loadCommissions(page)
-    } catch (err: any) {
-      setErrMsg(err.message)
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : '操作失败')
     }
   }
 
-  async function handleUpdateStatus(id: string, status: string) {
+  async function handleUpdateStatus(id: string, status: Commission['status']) {
     if (!ensureLogin()) return
     try {
       const updated = await api.updateCommission(id, { status })
       setCommissions((prev) => prev.map((c) => (c.id === id ? updated : c)))
-    } catch (err: any) {
-      setErrMsg(err.message)
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : '操作失败')
     }
   }
 
@@ -100,8 +100,8 @@ export default function CommissionPage() {
       setShowBid(null)
       const detail = await api.fetchCommission(commissionId)
       setCommissions((prev) => prev.map((c) => (c.id === commissionId ? detail : c)))
-    } catch (err: any) {
-      setErrMsg(err.message)
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : '操作失败')
     }
   }
 

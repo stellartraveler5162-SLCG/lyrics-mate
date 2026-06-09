@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs')
 const path = require('path')
 
 const PORT = process.env.PORT || 3001
-const JWT_SECRET = process.env.JWT_SECRET || 'lyrics-mate-secret-key-2026'
+const JWT_SECRET = process.env.JWT_SECRET || require('crypto').randomBytes(32).toString('hex')
 const DB_PATH = path.join(__dirname, 'data.db')
 
 const db = new Database(DB_PATH)
@@ -31,6 +31,13 @@ db.exec(`
     likes INTEGER DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS community_likes (
+    post_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (post_id, user_id)
   );
 
   CREATE TABLE IF NOT EXISTS commissions (
@@ -65,8 +72,8 @@ function paginate(req) {
   return { page, limit, offset }
 }
 
-function jsonList(rows, { page, limit }) {
-  return { data: rows, page, limit }
+function jsonList(rows, { page, limit, total }) {
+  return { data: rows, page, limit, total }
 }
 
 function authRequired(req, res, next) {
@@ -84,7 +91,15 @@ function authRequired(req, res, next) {
 }
 
 const app = express()
-app.use(cors())
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    'app://.',
+    'file://',
+    undefined,
+  ],
+}))
 app.use(express.json({ limit: '1mb' }))
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
@@ -95,25 +110,29 @@ app.post('/api/auth/register', (req, res) => {
   const { username, password } = req.body
   if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' })
   if (username.length < 2 || username.length > 24) return res.status(400).json({ error: '用户名长度 2-24 位' })
-  if (password.length < 4) return res.status(400).json({ error: '密码至少 4 位' })
+  if (password.length < 6) return res.status(400).json({ error: '密码至少 6 位' })
+  if (!/^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/.test(username)) return res.status(400).json({ error: '用户名只能包含中英文、数字、下划线、连字符' })
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username)
   if (existing) return res.status(409).json({ error: '用户名已被注册' })
   const id = uuid()
-  const hash = bcrypt.hashSync(password, 10)
-  db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?,?,?)').run(id, username, hash)
-  const token = jwt.sign({ userId: id, username }, JWT_SECRET, { expiresIn: '30d' })
-  res.status(201).json({ token, user: { id, username } })
+  bcrypt.hash(password, 10, (err, hash) => {
+    if (err) return res.status(500).json({ error: '服务错误，请稍后重试' })
+    db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?,?,?)').run(id, username, hash)
+    const token = jwt.sign({ userId: id, username }, JWT_SECRET, { expiresIn: '30d' })
+    res.status(201).json({ token, user: { id, username } })
+  })
 })
 
 app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body
   if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' })
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username)
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.status(401).json({ error: '用户名或密码错误' })
-  }
-  const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' })
-  res.json({ token, user: { id: user.id, username: user.username } })
+  if (!user) return res.status(401).json({ error: '用户名或密码错误' })
+  bcrypt.compare(password, user.password_hash, (err, match) => {
+    if (err || !match) return res.status(401).json({ error: '用户名或密码错误' })
+    const token = jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' })
+    res.json({ token, user: { id: user.id, username: user.username } })
+  })
 })
 
 app.get('/api/auth/me', authRequired, (req, res) => {
@@ -124,18 +143,23 @@ app.get('/api/auth/me', authRequired, (req, res) => {
 
 app.get('/api/community', (req, res) => {
   const { page, limit, offset } = paginate(req)
-  const sort = req.query.sort === 'likes' ? 'likes' : 'created_at'
+  const sort = req.query.sort
+  const ALLOWED_SORTS = ['likes', 'created_at']
+  const sortCol = ALLOWED_SORTS.includes(sort) ? sort : 'created_at'
   const total = db.prepare('SELECT COUNT(*) as count FROM community_posts').get().count
   const rows = db.prepare(
-    `SELECT * FROM community_posts ORDER BY ${sort === 'likes' ? 'likes DESC, ' : ''}created_at DESC LIMIT ? OFFSET ?`
+    `SELECT * FROM community_posts ORDER BY ${sortCol === 'likes' ? 'likes DESC, ' : ''}created_at DESC LIMIT ? OFFSET ?`
   ).all(limit, offset)
-  res.json({ ...jsonList(rows, { page, limit }), total })
+  res.json(jsonList(rows, { page, limit, total }))
 })
 
 app.get('/api/community/:id', (req, res) => {
   const post = db.prepare('SELECT * FROM community_posts WHERE id = ?').get(req.params.id)
   if (!post) return res.status(404).json({ error: 'Not found' })
-  res.json(post)
+  const likedByMe = req.headers.authorization && req.headers.authorization.startsWith('Bearer ')
+    ? (() => { try { return !!db.prepare('SELECT 1 FROM community_likes WHERE post_id = ? AND user_id = ?').get(req.params.id, jwt.verify(req.headers.authorization.slice(7), JWT_SECRET).userId) } catch { return false } })()
+    : false
+  res.json({ ...post, liked_by_me: likedByMe })
 })
 
 app.post('/api/community', authRequired, (req, res) => {
@@ -144,7 +168,7 @@ app.post('/api/community', authRequired, (req, res) => {
   const id = uuid()
   const now = new Date().toISOString()
   const author = req.user.username
-  const post = { id, user_id: req.user.userId, title, lyrics, author, tags: JSON.stringify(tags || []), likes: 0, created_at: now, updated_at: now }
+  const post = { id, user_id: req.user.userId, title, lyrics: lyrics.slice(0, 50000), author, tags: JSON.stringify(tags || []), likes: 0, created_at: now, updated_at: now }
   db.prepare('INSERT INTO community_posts (id, user_id, title, lyrics, author, tags, likes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)').run(
     post.id, post.user_id, post.title, post.lyrics, post.author, post.tags, post.likes, post.created_at, post.updated_at
   )
@@ -162,7 +186,10 @@ app.delete('/api/community/:id', authRequired, (req, res) => {
 app.post('/api/community/:id/like', authRequired, (req, res) => {
   const post = db.prepare('SELECT id, likes FROM community_posts WHERE id = ?').get(req.params.id)
   if (!post) return res.status(404).json({ error: 'Not found' })
+  const existing = db.prepare('SELECT 1 FROM community_likes WHERE post_id = ? AND user_id = ?').get(req.params.id, req.user.userId)
+  if (existing) return res.status(409).json({ error: '已经点过赞了' })
   const newLikes = post.likes + 1
+  db.prepare('INSERT INTO community_likes (post_id, user_id) VALUES (?, ?)').run(req.params.id, req.user.userId)
   db.prepare('UPDATE community_posts SET likes = ?, updated_at = datetime(\'now\') WHERE id = ?').run(newLikes, post.id)
   res.json({ likes: newLikes })
 })
@@ -183,7 +210,7 @@ app.get('/api/commissions', (req, res) => {
   query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
   const total = db.prepare(countQuery).get(...params).count
   const rows = db.prepare(query).all(...params, limit, offset)
-  res.json({ ...jsonList(rows, { page, limit }), total })
+  res.json(jsonList(rows, { page, limit, total }))
 })
 
 app.get('/api/commissions/:id', (req, res) => {
@@ -199,7 +226,7 @@ app.post('/api/commissions', authRequired, (req, res) => {
   const id = uuid()
   const now = new Date().toISOString()
   const author = req.user.username
-  const commission = { id, user_id: req.user.userId, title, description: description || '', budget: budget || '', author, status: 'open', tags: JSON.stringify(tags || []), created_at: now, updated_at: now }
+  const commission = { id, user_id: req.user.userId, title, description: (description || '').slice(0, 10000), budget: (budget || '').slice(0, 1000), author, status: 'open', tags: JSON.stringify(tags || []), created_at: now, updated_at: now }
   db.prepare('INSERT INTO commissions (id, user_id, title, description, budget, author, status, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
     commission.id, commission.user_id, commission.title, commission.description, commission.budget, commission.author, commission.status, commission.tags, commission.created_at, commission.updated_at
   )
@@ -211,14 +238,16 @@ app.patch('/api/commissions/:id', authRequired, (req, res) => {
   if (!commission) return res.status(404).json({ error: 'Not found' })
   const { status, title, description, budget } = req.body
   if (status && ['open', 'in_progress', 'completed'].includes(status)) {
+    if (commission.user_id !== req.user.userId) return res.status(403).json({ error: '只能修改自己的需求状态' })
     db.prepare('UPDATE commissions SET status = ?, updated_at = datetime(\'now\') WHERE id = ?').run(status, req.params.id)
   }
   if (title || description !== undefined || budget !== undefined) {
+    if (commission.user_id !== req.user.userId) return res.status(403).json({ error: '只能编辑自己的需求' })
     const updates = []
     const values = []
     if (title) { updates.push('title = ?'); values.push(title) }
-    if (description !== undefined) { updates.push('description = ?'); values.push(description) }
-    if (budget !== undefined) { updates.push('budget = ?'); values.push(budget) }
+    if (description !== undefined) { updates.push('description = ?'); values.push(description.slice(0, 10000)) }
+    if (budget !== undefined) { updates.push('budget = ?'); values.push(budget.slice(0, 1000)) }
     if (updates.length) {
       updates.push('updated_at = datetime(\'now\')')
       db.prepare(`UPDATE commissions SET ${updates.join(', ')} WHERE id = ?`).run(...values, req.params.id)
@@ -238,14 +267,15 @@ app.delete('/api/commissions/:id', authRequired, (req, res) => {
 })
 
 app.post('/api/commissions/:id/bids', authRequired, (req, res) => {
-  const commission = db.prepare('SELECT id, status FROM commissions WHERE id = ?').get(req.params.id)
+  const commission = db.prepare('SELECT id, user_id, status FROM commissions WHERE id = ?').get(req.params.id)
   if (!commission) return res.status(404).json({ error: 'Commission not found' })
   if (commission.status !== 'open') return res.status(400).json({ error: 'Commission is not open for bids' })
+  if (commission.user_id === req.user.userId) return res.status(400).json({ error: '不能应征自己的需求' })
   const { message, sample } = req.body
   const id = uuid()
   const now = new Date().toISOString()
   const author = req.user.username
-  const bid = { id, commission_id: req.params.id, user_id: req.user.userId, author, message: message || '', sample: sample || '', created_at: now }
+  const bid = { id, commission_id: req.params.id, user_id: req.user.userId, author, message: (message || '').slice(0, 5000), sample: (sample || '').slice(0, 50000), created_at: now }
   db.prepare('INSERT INTO commission_bids (id, commission_id, user_id, author, message, sample, created_at) VALUES (?,?,?,?,?,?,?)').run(
     bid.id, bid.commission_id, bid.user_id, bid.author, bid.message, bid.sample, bid.created_at
   )

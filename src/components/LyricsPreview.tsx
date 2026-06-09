@@ -2,6 +2,8 @@ import { useMemo, useCallback, useState } from 'react'
 import { useLyricsStore } from '@/store'
 import { FileDown, Copy, Check, Music4 } from 'lucide-react'
 
+const COPY_FEEDBACK_MS = 2000
+
 export default function LyricsPreview() {
   const { mode, template, rawLyrics, imageryTags, moodTone } = useLyricsStore()
   const [copied, setCopied] = useState(false)
@@ -35,7 +37,7 @@ export default function LyricsPreview() {
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(formattedLyrics)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), COPY_FEEDBACK_MS)
   }, [formattedLyrics])
 
   const handleExport = useCallback(async () => {

@@ -72,8 +72,8 @@ export default function CommunityPage() {
     try {
       await api.deleteCommunityPost(id)
       loadPosts(page)
-    } catch (err: any) {
-      setErrMsg(err.message)
+    } catch (err: unknown) {
+      setErrMsg(err instanceof Error ? err.message : '操作失败')
     }
   }
 

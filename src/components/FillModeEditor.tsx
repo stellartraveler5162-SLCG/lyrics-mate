@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useLyricsStore } from '@/store'
 import { Plus, Trash2, Hash, ClipboardPaste } from 'lucide-react'
 
+const MIN_CHAR_LIMIT = 1
+const MAX_CHAR_LIMIT = 20
+
 export default function FillModeEditor() {
   const [pasteText, setPasteText] = useState('')
   const {
@@ -38,6 +41,7 @@ export default function FillModeEditor() {
               if (pasted.trim()) {
                 e.preventDefault()
                 pasteLyrics(pasted.trim())
+                setPasteText('')
               }
             }}
             placeholder="粘贴原歌词，自动拆分为逐行..."
@@ -107,11 +111,13 @@ export default function FillModeEditor() {
                 <input
                   type="number"
                   value={line.charLimit}
-                  onChange={(e) =>
-                    updateLineCharLimit(line.id, Math.max(1, Math.min(20, Number(e.target.value) || 1)))
-                  }
-                  min={1}
-                  max={20}
+                  onChange={(e) => {
+                    const val = Number(e.target.value)
+                    const clamped = isNaN(val) ? MIN_CHAR_LIMIT : Math.max(MIN_CHAR_LIMIT, Math.min(MAX_CHAR_LIMIT, val))
+                    updateLineCharLimit(line.id, clamped)
+                  }}
+                  min={MIN_CHAR_LIMIT}
+                  max={MAX_CHAR_LIMIT}
                   className="w-10 px-1 py-1 text-[10px] text-center bg-paper-100 border border-paper-200
                     rounded focus:outline-none focus:border-ink-300 focus:ring-1 focus:ring-ink-200 tabular-nums"
                   title="字数"
